@@ -136,7 +136,16 @@ public class OrganizeResourcesEditor : EditorWindow {
         for (int i = 0; i < _AllAssetsPaths.Count; i++)
         {
             if (GetUseAssetPaths(_AllAssetsPaths[i]).Length <= 0)
-                _UnusedAssetsPaths.Add(_AllAssetsPaths[i]);
+            {
+                //屏蔽一些特殊文件夹
+                bool _isUnused = _AllAssetsPaths[i].Contains("Editor")|| _AllAssetsPaths[i].Contains("Editor Default Resources") 
+                    || _AllAssetsPaths[i].Contains("Gizmos") ||  _AllAssetsPaths[i].Contains("Plugins") 
+                    || _AllAssetsPaths[i].Contains("Resources") || _AllAssetsPaths[i].Contains("StreamingAssets");
+                if (!_isUnused)
+                {
+                    _UnusedAssetsPaths.Add(_AllAssetsPaths[i]);
+                }
+            }
             EditorUtility.DisplayProgressBar("整理未使用资源中", _AllAssetsPaths[i], (float)i / (float)_AllAssetsPaths.Count);
         }
         EditorUtility.ClearProgressBar();
@@ -271,10 +280,9 @@ public class OrganizeResourcesEditor : EditorWindow {
     {
         for (int i = 0; i < _RepeatAssetsPaths.Count; i++)
         {
-         //   GUILayout.Label("", GUILayout.Height(10));
-
+            //   GUILayout.Label("", GUILayout.Height(10));
             EditorGUILayout.BeginVertical("HelpBox");
-          //  List<string> _TempList = _RepeatAssetsPaths[i];
+            //  List<string> _TempList = _RepeatAssetsPaths[i];
             for (int j = 0; j < _RepeatAssetsPaths[i].Count; j++)
             {
                 EditorGUILayout.BeginHorizontal("HelpBox");
@@ -288,14 +296,15 @@ public class OrganizeResourcesEditor : EditorWindow {
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button("合并", GUILayout.Width(100)))
                 {
-                     OnRepeatMerge(_RepeatAssetsPaths[i][j], _RepeatAssetsPaths[i]);
-                     break;
+                    OnRepeatMerge(_RepeatAssetsPaths[i][j], _RepeatAssetsPaths[i]);
+                    break;
                 }
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
             }
             EditorGUILayout.EndVertical();
         }
+       
     }
    
     #region 合并
@@ -369,9 +378,6 @@ public class OrganizeResourcesEditor : EditorWindow {
     #region 获取相同的文件
     string[] GetSameFilePaths(string _PathValue)
     {
-        //判断是否为本地资源
-       // Object _ObejctValue = AssetDatabase.LoadAssetAtPath<Object>(_PathValue);
-     //   bool _isNative = AssetDatabase.IsNativeAsset(_ObejctValue);
         List<string> _AssetPaths = new List<string>();
 
         string _AssetMD5 = GetFileMD5(_PathValue);
@@ -380,7 +386,6 @@ public class OrganizeResourcesEditor : EditorWindow {
         {
             if (_AllAssetsPaths[i] == _PathValue)
                 continue;
-          //  if(_isNative==AssetDatabase.IsNativeAsset(AssetDatabase.LoadAssetAtPath<Object>(_AllAssetsPaths[i])))
                 if (_AssetMD5 == GetFileMD5(_AllAssetsPaths[i]))
                     _AssetPaths.Add(_AllAssetsPaths[i]);
 
@@ -413,6 +418,8 @@ public class OrganizeResourcesEditor : EditorWindow {
         }
         else
         {
+            _FileMD5 = "";
+            //外部文件的MD5值
             try
             {
 
@@ -421,7 +428,6 @@ public class OrganizeResourcesEditor : EditorWindow {
                 System.Security.Cryptography.MD5 md5 = new System.Security.Cryptography.MD5CryptoServiceProvider();
                 byte[] retVal = md5.ComputeHash(fs);
                 fs.Close();
-                _FileMD5 = "";
                 for (int i = 0; i < retVal.Length; i++)
                 {
                     _FileMD5 += retVal[i].ToString("x2");
@@ -431,40 +437,60 @@ public class OrganizeResourcesEditor : EditorWindow {
             {
                 Debug.Log(ex);
             }
+            //因为外部文件还存在不同的设置问题，还需要检测一下外部资源的.meta文件
+            if (_FileMD5 != "")
+            {
+                string _MetaPath = AssetDatabase.GetTextMetaFilePathFromAssetPath(_PathValue);
+                string _ObjectGUID = AssetDatabase.AssetPathToGUID(_PathValue);
+                //去掉guid来检测
+                string _TempFileText = File.ReadAllText(_TemPath + _MetaPath).Replace("guid: " + _ObjectGUID, "");
+
+                System.Security.Cryptography.MD5 _MetaMd5 = new System.Security.Cryptography.MD5CryptoServiceProvider();
+                //将字符串转换为字节数组  
+                byte[] fromData = System.Text.Encoding.Unicode.GetBytes(_TempFileText);
+                //计算字节数组的哈希值  
+                byte[] toData = _MetaMd5.ComputeHash(fromData);
+                for (int i = 0; i < toData.Length; i++)
+                {
+                    _FileMD5 += toData[i].ToString("x2");
+                }
+            }
         }
         return _FileMD5;
     }
     #endregion
     #endregion
 
-    
-    //[MenuItem("Assets/Load File", false, 10)]
-    //static void DebugFileString()
-    //{
-    //    RefreshForceText();
 
-    //    if (!Selection.activeObject)
-    //        return;
+    [MenuItem("Assets/Load File", false, 10)]
+    static void DebugFileString()
+    {
+        RefreshForceText();
 
-    //    Object _ActiveObject = Selection.activeObject;
-    //    string _ObjectPath = AssetDatabase.GetAssetPath(_ActiveObject);
-    //    string _Path = Application.dataPath.Replace("Assets", "");
-    //    string _Context= File.ReadAllText(_Path + _ObjectPath);
-        
-    //    Debug.Log(AssetDatabase.IsNativeAsset(_ActiveObject) + "  ####  " + _Context.Contains("m_Name: " + _ActiveObject.name) + "   @@@@  " + _Context);
-    //    _Context = "";
-    //    string[] _TempArray = File.ReadAllLines(_Path + _ObjectPath);
-    //    for (int i = 0; i < _TempArray.Length; i++)
-    //    {
-    //        if (_TempArray[i].Contains("m_Name: "))
-    //        {
-    //            _TempArray[i] = "";
-    //        }
-    //        _Context += _TempArray[i];
-    //        if (i != _TempArray.Length - 1)
-    //            _Context += "\n";
-    //    }
-    //}
+        if (!Selection.activeObject)
+            return;
+
+        Object _ActiveObject = Selection.activeObject;
+        string _ObjectPath = AssetDatabase.GetAssetPath(_ActiveObject);
+        string _Path = Application.dataPath.Replace("Assets", "");
+        //string _Context = File.ReadAllText(_Path + _ObjectPath);
+
+      Debug.Log(AssetDatabase.GetTextMetaFilePathFromAssetPath(_ObjectPath));
+
+        //Debug.Log(AssetDatabase.IsNativeAsset(_ActiveObject) + "  ####  " + _Context.Contains("m_Name: " + _ActiveObject.name) + "   @@@@  " + _Context);
+        //_Context = "";
+        //string[] _TempArray = File.ReadAllLines(_Path + _ObjectPath);
+        //for (int i = 0; i < _TempArray.Length; i++)
+        //{
+        //    if (_TempArray[i].Contains("m_Name: "))
+        //    {
+        //        _TempArray[i] = "";
+        //    }
+        //    _Context += _TempArray[i];
+        //    if (i != _TempArray.Length - 1)
+        //        _Context += "\n";
+        //}
+    }
 
     #region 刷新Asset的Text
     static void RefreshForceText()
