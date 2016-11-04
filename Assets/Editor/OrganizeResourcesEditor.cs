@@ -22,6 +22,9 @@ public class OrganizeResourcesEditor : EditorWindow {
     private List<string> _UnusedAssetsPaths = new List<string>();
     private List<List<string>> _RepeatAssetsPaths = new List<List<string>>();
 
+    private List<bool> _UnusedSelect = new List<bool>();
+    private List<List<bool>> _RepeatSelect = new List<List<bool>>();
+
     enum ControllerState
     {
         NONE,
@@ -30,18 +33,21 @@ public class OrganizeResourcesEditor : EditorWindow {
         REPEAT,
     }
     ControllerState CtrlState = ControllerState.NONE;
-    
+
+   
+
     //
     #region GUI
     void OnGUI()
     {
         scrollVec2 = GUILayout.BeginScrollView(scrollVec2);
+        GUILayout.Label("删除功能请慎重操作");
         #region 三个按钮
 
         GUIStyle _AllBtnStyle = GUI.skin.GetStyle("flow node 2");
         GUIStyle _UnusedBtnStyle = GUI.skin.GetStyle("flow node 2");
         GUIStyle _RepeatBtnStyle = GUI.skin.GetStyle("flow node 2");
-
+        
         switch (CtrlState)
         {
             case ControllerState.ALL:
@@ -122,8 +128,20 @@ public class OrganizeResourcesEditor : EditorWindow {
         for (int i = 0; i < _tempList.Length; i++)
         {
             if (_tempList[i].Contains("Assets"))
+            {
                 if (!AssetDatabase.IsValidFolder(_tempList[i]))
-                    _AllAssetsPaths.Add(_tempList[i]);
+                {
+                    //屏蔽一些特殊文件夹
+                    bool _isUnused = _tempList[i].Contains("Editor") || _tempList[i].Contains("Editor Default Resources")
+                        || _tempList[i].Contains("Gizmos") || _tempList[i].Contains("Plugins")
+                        || _tempList[i].Contains("Resources") || _tempList[i].Contains("StreamingAssets");
+                    if (!_isUnused)
+                    {
+                        _AllAssetsPaths.Add(_tempList[i]);
+                    }
+                }
+                    
+            }
         }
         #endregion
     }
@@ -133,18 +151,13 @@ public class OrganizeResourcesEditor : EditorWindow {
         OnAllClick();
 
         _UnusedAssetsPaths = new List<string>();
+        _UnusedSelect = new List<bool>();
         for (int i = 0; i < _AllAssetsPaths.Count; i++)
         {
             if (GetUseAssetPaths(_AllAssetsPaths[i]).Length <= 0)
             {
-                //屏蔽一些特殊文件夹
-                bool _isUnused = _AllAssetsPaths[i].Contains("Editor")|| _AllAssetsPaths[i].Contains("Editor Default Resources") 
-                    || _AllAssetsPaths[i].Contains("Gizmos") ||  _AllAssetsPaths[i].Contains("Plugins") 
-                    || _AllAssetsPaths[i].Contains("Resources") || _AllAssetsPaths[i].Contains("StreamingAssets");
-                if (!_isUnused)
-                {
-                    _UnusedAssetsPaths.Add(_AllAssetsPaths[i]);
-                }
+                _UnusedAssetsPaths.Add(_AllAssetsPaths[i]);
+                _UnusedSelect.Add(false);
             }
             EditorUtility.DisplayProgressBar("整理未使用资源中", _AllAssetsPaths[i], (float)i / (float)_AllAssetsPaths.Count);
         }
@@ -157,6 +170,7 @@ public class OrganizeResourcesEditor : EditorWindow {
         OnAllClick();
         
          _RepeatAssetsPaths = new List<List<string>>();
+        _RepeatSelect = new List<List<bool>>();
         List<string> _TempListRepeat = new List<string>();
         for (int i = 0; i < _AllAssetsPaths.Count; i++)
         {
@@ -170,7 +184,9 @@ public class OrganizeResourcesEditor : EditorWindow {
         {
             EditorUtility.DisplayProgressBar("整理重复资源中", _TempListRepeat[i], (float)i+1.0f / (float)_TempListRepeat.Count);
             List<string> _TempMake = new List<string>();
+            List<bool> _TempSelect = new List<bool>();
             _TempMake.Add(_TempListRepeat[i]);
+            _TempSelect.Add(false);
             for (int j = 0; j < _TempListRepeat.Count; j++)
             {
                 if (i == j)
@@ -178,11 +194,13 @@ public class OrganizeResourcesEditor : EditorWindow {
                 if (GetFileMD5(_TempListRepeat[i]) == GetFileMD5(_TempListRepeat[j]))
                 {
                     _TempMake.Add(_TempListRepeat[j]);
+                    _TempSelect.Add(false);
                     _TempListRepeat.RemoveAt(j);
                     j--;
                 }
             }
             _RepeatAssetsPaths.Add(_TempMake);
+            _RepeatSelect.Add(_TempSelect);
             _TempListRepeat.RemoveAt(i);
             i--;
         }
@@ -193,18 +211,36 @@ public class OrganizeResourcesEditor : EditorWindow {
     #region 所有资源GUI
     void OnAllGUI()
     {
+        if (_AllAssetsPaths.Count > 0)
+        {
+            EditorGUILayout.BeginHorizontal("HelpBox");
+            GUILayout.Label("图标", new GUILayoutOption[] { GUILayout.Width(40), GUILayout.Height(20) });
+            GUILayout.Label("名称", GUILayout.Width(300));
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("", GUILayout.Width(100));
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("", GUILayout.Width(100));
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+
         for (int i = 0; i < _AllAssetsPaths.Count; i++)
         {
             EditorGUILayout.BeginHorizontal("HelpBox");//
             GUILayout.Label(AssetDatabase.GetCachedIcon(_AllAssetsPaths[i]), new GUILayoutOption[] { GUILayout.Width(30), GUILayout.Height(20) });
             GUILayout.Label(AssetDatabase.LoadMainAssetAtPath(_AllAssetsPaths[i]).name, GUILayout.Width(300));
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("GUID", GUILayout.Width(100)))
+            if (GUILayout.Button("InstanceID", GUILayout.Width(80)))
+            {
+                Debug.Log(AssetDatabase.LoadAssetAtPath<Object>(_AllAssetsPaths[i]).GetInstanceID());
+            }
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("GUID", GUILayout.Width(80)))
             {
                 Debug.Log(AssetDatabase.AssetPathToGUID(_AllAssetsPaths[i]));
             }
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("引用", GUILayout.Width(100)))
+            if (GUILayout.Button("引用", GUILayout.Width(80)))
             {
                 string[] _TempArray = AssetDatabase.GetDependencies(_AllAssetsPaths[i]);
                 string _Temp = "";
@@ -215,7 +251,7 @@ public class OrganizeResourcesEditor : EditorWindow {
                 Debug.Log(_Temp);
             }
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("被引用", GUILayout.Width(100)))
+            if (GUILayout.Button("被引用", GUILayout.Width(80)))
             {
                 string[] _TempArray = GetUseAssetPaths(_AllAssetsPaths[i]);
                 string _Temp = "";
@@ -234,15 +270,22 @@ public class OrganizeResourcesEditor : EditorWindow {
     #region 未使用资源GUI
     void OnUnsedGUI()
     {
-        EditorGUILayout.BeginHorizontal("HelpBox");
-        GUILayout.Label("图标", new GUILayoutOption[] { GUILayout.Width(40), GUILayout.Height(20) });
-        GUILayout.Label("名称", GUILayout.Width(300));
-        GUILayout.FlexibleSpace();
-        GUILayout.Label("", GUILayout.Width(100));
-        GUILayout.FlexibleSpace();
-        GUILayout.Label("", GUILayout.Width(100));
-        GUILayout.FlexibleSpace();
-        EditorGUILayout.EndHorizontal();
+        if (_UnusedAssetsPaths.Count > 0)
+        {
+            EditorGUILayout.BeginHorizontal("HelpBox");
+            GUILayout.Label("图标", new GUILayoutOption[] { GUILayout.Width(40), GUILayout.Height(20) });
+            GUILayout.Label("名称", GUILayout.Width(300));
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("", GUILayout.Width(100));
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("删除所选", GUILayout.Width(100)))
+            {
+                OnUnusedDelete();
+            }
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+
+        }
 
         for (int i = 0; i < _UnusedAssetsPaths.Count; i++)
         {
@@ -255,10 +298,13 @@ public class OrganizeResourcesEditor : EditorWindow {
                 OnUnusedSelect(_UnusedAssetsPaths[i]);
             }
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("删除", GUILayout.Width(100)))
-            {
-                OnUnusedDelete(_UnusedAssetsPaths[i]);
-            }
+            GUILayout.Space(100);
+            //因为删除一次就会更新一次资源  所以提供选项 一次性删除
+            _UnusedSelect[i]= GUILayout.Toggle(_UnusedSelect[i], "删除", GUILayout.Width(100));
+            //if (GUILayout.Button("删除", GUILayout.Width(100)))
+            //{
+            //    OnUnusedDelete(_UnusedAssetsPaths[i]);
+            //}
             GUILayout.FlexibleSpace();
             EditorGUILayout.EndHorizontal();
         }
@@ -267,22 +313,50 @@ public class OrganizeResourcesEditor : EditorWindow {
     {
         Selection.activeObject = AssetDatabase.LoadAssetAtPath<Object>(_PathValue);
     }
-    void OnUnusedDelete(string _PathValue)
+    void OnUnusedDelete()
     {
-        if (AssetDatabase.DeleteAsset(_PathValue))
+        bool _isDelete = false;
+        if (_UnusedAssetsPaths.Count == _UnusedSelect.Count)
+        {
+            for (int i = 0; i < _UnusedSelect.Count; i++)
+            {
+                if (_UnusedSelect[i])
+                {
+                    AssetDatabase.DeleteAsset(_UnusedAssetsPaths[i]);
+                    _isDelete = true;
+                }
+            }
+        }
+        if (_isDelete)
+        {
             AssetDatabase.Refresh();
-        OnUnusedClick();
+            OnUnusedClick();
+        }
     }
     #endregion
 
     #region 重复资源GUI
     void OnRepeatGUI()
     {
+        if (_RepeatAssetsPaths.Count > 0)
+        {
+            EditorGUILayout.BeginHorizontal("HelpBox");
+            GUILayout.Label("图标", new GUILayoutOption[] { GUILayout.Width(40), GUILayout.Height(20) });
+            GUILayout.Label("名称", GUILayout.Width(300));
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("", GUILayout.Width(100));
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("合并所选", GUILayout.Width(100)))
+            {
+                OnQueryRepeatMerge();
+            }
+            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndHorizontal();
+        }
+
         for (int i = 0; i < _RepeatAssetsPaths.Count; i++)
         {
-            //   GUILayout.Label("", GUILayout.Height(10));
             EditorGUILayout.BeginVertical("HelpBox");
-            //  List<string> _TempList = _RepeatAssetsPaths[i];
             for (int j = 0; j < _RepeatAssetsPaths[i].Count; j++)
             {
                 EditorGUILayout.BeginHorizontal("HelpBox");
@@ -294,21 +368,54 @@ public class OrganizeResourcesEditor : EditorWindow {
                     OnUnusedSelect(_RepeatAssetsPaths[i][j]);
                 }
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button("合并", GUILayout.Width(100)))
+                GUILayout.Space(100);
+                _RepeatSelect[i][j] = GUILayout.Toggle(_RepeatSelect[i][j], "合并", GUILayout.Width(100));
+                for (int m = 0; m < _RepeatSelect[i].Count; m++)
                 {
-                    OnRepeatMerge(_RepeatAssetsPaths[i][j], _RepeatAssetsPaths[i]);
-                    break;
+                    if (m != j&& _RepeatSelect[i][j])
+                    {
+                        _RepeatSelect[i][m] = false;
+                    }
                 }
+                //if (GUILayout.Button("合并", GUILayout.Width(100)))
+                //{
+                //    OnRepeatMerge(_RepeatAssetsPaths[i][j], _RepeatAssetsPaths[i]);
+                //    break;
+                //}
                 GUILayout.FlexibleSpace();
                 EditorGUILayout.EndHorizontal();
             }
             EditorGUILayout.EndVertical();
         }
-       
     }
-   
+
     #region 合并
-    void OnRepeatMerge(string _PathValue,List<string> _ListValue)
+    void OnQueryRepeatMerge()
+    {
+        bool _isMerge = false;
+        if (_RepeatSelect.Count != _RepeatAssetsPaths.Count)
+            return;
+        for (int i = 0; i < _RepeatAssetsPaths.Count; i++)
+        {
+            if (_RepeatSelect[i].Count != _RepeatAssetsPaths[i].Count)
+                break;
+            for (int j = 0; j < _RepeatAssetsPaths[i].Count; j++)
+            {
+                if (_RepeatSelect[i][j])
+                {
+                    OnRepeatMerge(_RepeatAssetsPaths[i][j], _RepeatAssetsPaths[i]);
+                    _isMerge = true;
+                }
+            }
+        }
+        if (_isMerge)
+        {
+            AssetDatabase.Refresh();
+            OnRepeatClick();
+        }
+    }
+
+    void OnRepeatMerge(string _PathValue, List<string> _ListValue)
     {
         string _FixedGUID= AssetDatabase.AssetPathToGUID(_PathValue);
         string _AssetsPath = Application.dataPath.Replace("Assets", "");
@@ -326,11 +433,33 @@ public class OrganizeResourcesEditor : EditorWindow {
                 Object _OtherUseAsset = AssetDatabase.LoadAssetAtPath<Object>(_OtherPaths[j]);
                 if (AssetDatabase.IsNativeAsset(_OtherUseAsset))
                 {
-                    string _RealAllText = File.ReadAllText(_AssetsPath+ _OtherPaths[j]).Replace(_OldGUI,_FixedGUID);
+                    string _RealAllText = File.ReadAllText(_AssetsPath + _OtherPaths[j]).Replace(_OldGUI, _FixedGUID);
                     File.WriteAllText(_AssetsPath + _OtherPaths[j], _RealAllText);
                 }
                 else
-                    _isOtherNative = false;
+                {
+                    //外部引用  --   外部资源引用到材质好像就模型了吧   一时也想不到其他东西
+                    if (_PathValue.EndsWith(".mat"))
+                    {
+                        Object _ChangeObejct = AssetDatabase.LoadAssetAtPath<Object>(_ListValue[i]);
+                        GameObject _MeshObject = AssetDatabase.LoadAssetAtPath<GameObject>(_OtherPaths[j]);
+                        MeshRenderer[] _KidsMR = _MeshObject.GetComponentsInChildren<MeshRenderer>();
+                        for (int m = 0; m < _KidsMR.Length; m++)
+                        {
+                            Material[] _TempShared = _KidsMR[m].sharedMaterials;
+                            for (int n = 0; n < _TempShared.Length; n++)
+                            {
+                                if (_ChangeObejct.GetInstanceID() == _TempShared[n].GetInstanceID())
+                                {
+                                    _TempShared[n] = AssetDatabase.LoadAssetAtPath<Material>(_PathValue);
+                                }
+                                _KidsMR[m].materials = _TempShared;
+                            }
+                        }
+                    }
+                    else
+                        _isOtherNative = false;
+                }
             }
             //如果没有外部资源引用他 就删除
             if (_isOtherNative)
@@ -340,9 +469,8 @@ public class OrganizeResourcesEditor : EditorWindow {
                 i--;
             }
         }
-        AssetDatabase.Refresh();
-        OnRepeatClick();
     }
+    
     #endregion
     #endregion
 
@@ -472,7 +600,7 @@ public class OrganizeResourcesEditor : EditorWindow {
 
         Object _ActiveObject = Selection.activeObject;
         string _ObjectPath = AssetDatabase.GetAssetPath(_ActiveObject);
-        string _Path = Application.dataPath.Replace("Assets", "");
+       // string _Path = Application.dataPath.Replace("Assets", "");
         //string _Context = File.ReadAllText(_Path + _ObjectPath);
 
       Debug.Log(AssetDatabase.GetTextMetaFilePathFromAssetPath(_ObjectPath));
